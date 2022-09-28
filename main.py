@@ -1,145 +1,115 @@
 import zipfile
 import os
+from os import listdir
+from os.path import isfile, join
+from glob import glob
+import ast
+from collections import namedtuple
 
-# bots_filenames = "/Users/ashleyjvarghese/Desktop/bots_filenames.txt"
-# fileptr = open(bots_filenames, 'r')
-# base_path = "/Users/ashleyjvarghese/Desktop/bots_zip/"
+Import = namedtuple("Import", ["module", "name", "alias"])
+
+DATA_OUTPUT = "bots_unzipp"
+#DATA_INPUT = "data"
+DATA_INPUT="/Users/arjunarunasalam/Desktop/GithubCrawler/data2"
+PARENT_DIR = os.getcwd()
+UNZIP_DIRECTORY = os.path.join(PARENT_DIR, DATA_OUTPUT)
 
 
-def convert(bots_filenames, base_path, extraction_directory):
-    fileptr = open(bots_filenames, 'r')
-    paths_to_zip_files = []
-    lines = fileptr.readlines()
-    for line in lines:
-        paths_to_zip_files.append(base_path + line[:-1])
+try:
+    os.mkdir(path_to_unzipped_bots)
+    print("Making bots_unzipp directory")
+except:
+    print("Bots_unzipp already exists exists")
 
-    #creating extraction directory
-    # directory = "bots_unzipp"
-    # parent_dir = os.getcwd()
-    # mode = 0o666
-    # path2 = os.path.join(parent_dir, directory)
-    # os.mkdir(path2)
-    # extraction_directory = path2
-    # path_to_unzipped_bots = path2
 
-    # directory_to_extract_to = "/Users/ashleyjvarghese/Desktop/bots_unzup"
+# Accepts a path as an argument and returns the import statements within said part 
+def get_imports(path):
+    with open(path) as fh:        
+       root = ast.parse(fh.read(), path)
+    #print(path)
+    for node in ast.iter_child_nodes(root):
+        if isinstance(node, ast.Import):
+            module = []
+        elif isinstance(node, ast.ImportFrom):  
+            if not node.module:
+                module = "."
+                continue
+            module = node.module.split('.')
+        else:
+            continue
 
-    for path in paths_to_zip_files:
+        for n in node.names:
+            yield Import(module, n.name.split('.'), n.asname)
+
+# Accepts a path as an argument and returns all python files within that path's directoroy
+def return_all_python_files(directory):
+    result = [y for x in os.walk(directory) for y in glob(os.path.join(x[0], '*.py'))]
+    return result
+
+#Accepts a list of python file paths and returns a set of all imported libraries/modules
+def extract_all_imports(pythonFileList):    
+    importSet = set()
+    for file in pythonFileList:
+        imports = get_imports(file)
+        for val in imports:
+            if val.module:
+                importSet.add(".".join(val.module))
+            else:
+                importSet.add(".".join(val.name))
+    return importSet
+
+#Accepts a src (argument 1) of zipped files to produce unzipped folders within dst (argument 2)
+def unzip_all( base_path, extraction_directory):
+    # extract all zipped file names
+    onlyfiles = ["{}/{}".format(base_path,f) for f in listdir(base_path) if isfile(join(base_path, f))]
+    
+    #unzip
+    for path in onlyfiles:
         try:
             with zipfile.ZipFile(path, 'r') as zip_ref:
                 zip_ref.extractall(extraction_directory)
+            print("Unzipping", path)
         except:
-            continue
-
-    fileptr.close()
-
-
-direct = "bots_unzipp"
-parent_dir = os.getcwd()
-path2 = os.path.join(parent_dir, direct)
-os.mkdir(path2)
-
-bots_filenames = input("enter full path to text file containing bot filenames")
-base_path = input("enter full path to directory containing zipped bot directories")
-path_to_unzipped_bots = path2
-convert(bots_filenames, base_path, extraction_directory=path_to_unzipped_bots)
-
-# convert(fileptr, base_path)
+            print("Error unzipping", path)
+ 
 #
-def read_py(directory):
-    r = []
-    # for i in os.walk(directory):
-    #     print (i)
-    # op = open('repoImports', 'w')
-    import_Map = {}
-    map = {}
-    for i in os.listdir(directory):
-        map[directory + '/' + i] = []
-    # print (map)
-    map2 = {}
-    for root, dirs, files in os.walk(directory):
-        last_occu = root.rfind('/')
-        root_valu = -1
-        root_Orig = root
-        if (root[last_occu - 11: last_occu] != 'bots_unzipp'):
-            test1index = root.find('bots_unzipp')
-            end_Index = root[test1index + 12:].find('/')
-            root_valu = root[:end_Index + test1index + 12]
-            if root_valu not in map:
-                map[root_valu] = []
-                map2[root_valu] = []
-        else:
-            map[root] = []
-            map2[root] = []
-        flag = False
-        for name in files:
-            if name[-3:] == '.py':
-                flag = True
-                fileptr = open(root_Orig + '/' + name, 'r')
-                lines = fileptr.readlines()
-                final_imports = []
-                for line in lines:
-                    if line[:4] == 'from' or line[:6] == 'import':
-                        # # processing
-                        arra = line.split()
-                        for i in arra:
-                            if i != 'as' and i != 'from' and i != 'import':
-                                temp = i
-                                if i[-1] == ',':
-                                    temp = i[:-1]
-                                    final_imports.append(temp)
-                                else:
-                                    final_imports.append(temp)
-                                if temp not in import_Map:
-                                    import_Map[temp] = 1
-                                else:
-                                    import_Map[temp] = import_Map[temp] + 1
-
-
-
-
-                # print (final_imports)
-                if root_valu != -1:
-                    map2[root_valu] += (final_imports)
-                else:
-                    map2[root] += (final_imports)
-                        # if line[:-1] not in import_Map:
-                        #     import_Map[line[:-1]] = 1
-                        # else:
-                        #     import_Map[line[:-1]] = import_Map[line[:-1]] + 1
-                if root_valu != -1:
-                    map[root_valu] += (name)
-
-                else:
-                    map[root] += (name)
-        if flag == False:
+def generate_import_report(directory):
+    global_map = {}
+    for path in os.listdir(directory):
+        full_path = os.path.join(directory,path)
+        if not os.path.isdir(full_path):
             continue
-            # print ('flaq')
-            # print (root, root_valu)
-            # r.append(os.path.join(root, name))
 
-    fileptr.close()
-    return map2, import_Map
-    # return r
+        print("Extracting imports from:",full_path)
 
-directory = path_to_unzipped_bots
-# print (directory)
-r = read_py(directory)
-fileptr2 = open('imports.txt', 'w')
-r, r2 = r[0], r[1]
+        pythonFiles = return_all_python_files(full_path)
+        if not pythonFiles:
+            continue
+        #print(pythonFiles)
+        try:
+            imports = extract_all_imports(pythonFiles)
+        except:
+            print("Error extracting modules from", path)
+            continue
+
+        for module in imports: 
+            if module in global_map:
+                global_map[module] +=1
+            else:
+                global_map[module] = 1 
+
+    return global_map
+    
+unzip_all(DATA_INPUT, extraction_directory=UNZIP_DIRECTORY)
+global_map = generate_import_report(UNZIP_DIRECTORY)
 
 
-# print (r)
 
 
 
-for i in r:
-    fileptr2.write(i + str(set(r[i])))
-    fileptr2.write('\n')
-fileptr2.close()
 
-r2 = dict(sorted(r2.items(), key=lambda item: item[1], reverse=True))
-print (r2)
+sorted_global_map = dict(sorted(global_map.items(), key=lambda item: item[1], reverse=True))
+print(sorted_global_map)
 
 
 
