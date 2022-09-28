@@ -1,15 +1,15 @@
 import zipfile
 import os
 from os import listdir
-from os.path import isfile, join
+from os.path import isfile, join, isdir
 from glob import glob
 import ast
 from collections import namedtuple
+import csv
+import shutil
 
 Import = namedtuple("Import", ["module", "name", "alias"])
-
 DATA_OUTPUT = "bots_unzipp"
-#DATA_INPUT = "data"
 DATA_INPUT="/Users/arjunarunasalam/Desktop/GithubCrawler/data2"
 PARENT_DIR = os.getcwd()
 UNZIP_DIRECTORY = os.path.join(PARENT_DIR, DATA_OUTPUT)
@@ -21,6 +21,11 @@ try:
 except:
     print("Bots_unzipp already exists exists")
 
+#deletes all subdirs within a directory (arg 1)
+def cleanup(directory):
+    onlyfolders= ["{}/{}".format(directory,f) for f in listdir(directory) if isdir(join(directory, f))]
+    for dir_to_delete in onlyfolders:
+        shutil.rmtree(dir_to_delete)
 
 # Accepts a path as an argument and returns the import statements within said part 
 def get_imports(path):
@@ -99,17 +104,51 @@ def generate_import_report(directory):
                 global_map[module] = 1 
 
     return global_map
+
+#accepts a sorted dictionary to a csv
+def write_module_csv(filename,sorted_dict):
+    with open(filename, 'w') as f:  # You will need 'wb' mode in Python 2.x
+        w = csv.DictWriter(f, ['module_name','repo count'])
+        w.writeheader()
+        for key in sorted_dict:
+            w.writerow({'module_name':key,'repo count':sorted_dict[key]})
     
-unzip_all(DATA_INPUT, extraction_directory=UNZIP_DIRECTORY)
-global_map = generate_import_report(UNZIP_DIRECTORY)
+#accepts a dictionary of modules/submodules and returns sorted count with respect to modules only 
+#ex, selenium.x and selenium y are all under selenium
+def remove_sub_modules(sorted_dictionary):
+    new_dictionary = {}
+    for key in sorted_dictionary:
+
+        modified_key = key.split(".")[0]
+
+        if modified_key not in new_dictionary:
+            new_dictionary[modified_key] = 1
+        else: 
+            new_dictionary[modified_key] += 1 
+
+    dict(sorted(new_dictionary.items(), key=lambda item: item[1], reverse=True))
+
+    return new_dictionary
 
 
+def main():
+
+    unzip_all(DATA_INPUT, extraction_directory=UNZIP_DIRECTORY)
+
+    global_map = generate_import_report(UNZIP_DIRECTORY)
+
+    sorted_global_map = dict(sorted(global_map.items(), key=lambda item: item[1], reverse=True))
+
+    write_module_csv('module_sorted_by_count.csv', sorted_global_map)
+
+    global_map_submodule_removed  = remove_sub_modules(sorted_global_map)
+
+    write_module_csv('modules_only(nosubmodules)_sorted_by_count.csv', global_map_submodule_removed)
+
+    cleanup(UNZIP_DIRECTORY)
 
 
-
-
-sorted_global_map = dict(sorted(global_map.items(), key=lambda item: item[1], reverse=True))
-print(sorted_global_map)
+main()
 
 
 
